@@ -1,4 +1,4 @@
-"""The model used for defining PyTorch models and the following sklearn 
+"""The model used for defining PyTorch models and the following sklearn
 estimator
 """
 

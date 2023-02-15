@@ -11,7 +11,7 @@ from ray import tune
 from sklearn import metrics
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 
-import model
+from pytorch_model_data_science import model
 
 
 def tune_classifier(
