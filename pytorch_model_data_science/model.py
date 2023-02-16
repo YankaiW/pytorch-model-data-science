@@ -13,15 +13,28 @@ from torch import nn
 class PyTorchEstimator(base.BaseEstimator, base.RegressorMixin):
     """The class to define a sklearn estimator from PyTorch model"""
 
-    def __init__(self, model: nn.Module) -> None:
+    def __init__(self, model: nn.Module, target: str) -> None:
         """Constructor
 
         Parameters
         ----------
         model: nn.Module
             the model from PyTorch
+        target: str
+            the task what the model does, including classification and
+            regression
         """
         self.model = model
+        self.target = target
+
+        self._check_valid_target()
+
+    def _check_valid_target(self) -> None:
+        """Checks if the target is valid"""
+        assert self.target in [
+            "classification",
+            "regression",
+        ], f"Wrong target name: {self.target}"
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
         """Simulates fit process
@@ -91,7 +104,10 @@ class PyTorchEstimator(base.BaseEstimator, base.RegressorMixin):
             the scoare
         """
         y_pred = self.predict(X)
-        return metrics.mean_squared_error(y, y_pred)
+        if self.target == "classification":
+            return metrics.f1_score(y, y_pred > 0.5)
+        elif self.target == "regression":
+            return metrics.mean_squared_error(y, y_pred)
 
 
 # linear network for regression
