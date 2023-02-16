@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytorch-model-data-science"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Yankai Wang <yankai.wang@momox.biz>"]
 
