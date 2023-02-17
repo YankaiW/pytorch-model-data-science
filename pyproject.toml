@@ -2,7 +2,7 @@
 name = "pytorch-model-data-science"
 version = "0.1.1"
 description = ""
-authors = ["Yankai Wang <yankai.wang@momox.biz>"]
+authors = ["YankaiW <wyk.uestc@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
