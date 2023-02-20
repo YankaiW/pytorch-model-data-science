@@ -31,18 +31,18 @@ def tune_classifier(
 
     Parameters
     ----------
-    net_structure: str
-        the name of the model
     config: dict
         the dictionary containing the hyperparameter grid
+    net_structure: str
+        the name of the model
     train_ray: ray.ObjectRef
         the train data id represented by ray.ObjectRef
+    loss_fn: Any
+        the PyTorch loss function
     val_ray: ray.ObjectRef
         the validation data id represented by ray.ObjectRef
     val_size: float, default None
         the validation data size from the train data
-    loss_fn: Any
-        the loss function
     last_checkpoint: str, default None
         the local checkpoint dir if want to continue from the last time
     class_weight: bool, default False

@@ -112,6 +112,8 @@ class PyTorchEstimator(base.BaseEstimator, base.RegressorMixin):
 
 # linear network for regression
 class DNNNetRegressor(nn.Module):
+    """The class to define a 3-layer linear Pytorch regression model"""
+
     def __init__(
         self,
         input_size: int,
@@ -119,6 +121,19 @@ class DNNNetRegressor(nn.Module):
         l2: int = 128,
         l3: int = 64,
     ) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        input_size: int
+            the input size which is the second dim from each batch
+        l1: int, default 512
+            the number of output samples from the first layer
+        l2: int, default 128
+            the number of output samples from the second layer
+        l3: int, default 64
+            the number of output samples from the third layer
+        """
         super(DNNNetRegressor, self).__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
@@ -138,6 +153,8 @@ class DNNNetRegressor(nn.Module):
 
 # linear network for classification
 class DNNNetClassifier(nn.Module):
+    """The class to define a 3-layer linear Pytorch classification model"""
+
     def __init__(
         self,
         input_size: int,
@@ -145,6 +162,19 @@ class DNNNetClassifier(nn.Module):
         l2: int = 128,
         l3: int = 64,
     ) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        input_size: int
+            the input size which is the second dim from each batch
+        l1: int, default 512
+            the number of output samples from the first layer
+        l2: int, default 128
+            the number of output samples from the second layer
+        l3: int, default 64
+            the number of output samples from the third layer
+        """
         super(DNNNetClassifier, self).__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
