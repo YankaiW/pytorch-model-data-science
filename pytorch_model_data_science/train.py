@@ -103,3 +103,81 @@ def train_classifier(
         train_pred.detach().numpy().flatten() > 0.5,
     )
     print(f"{'Train':<10}{train_loss:<10}{precision:<15}{recall:<10}{f1:<10}")
+
+
+def train_regressor(
+    network: torch.nn.Module,
+    dataset: Dataset,
+    loss_fn: Any,
+    model_type: str,
+    optimizer: Any,
+    batch_size: int = 1024,
+    verbose: int = 0,
+) -> None:
+    """Trains a regression PyTorch model
+
+    Parameters
+    ----------
+    network: torch.nn.Module
+        the PyTorch classification model
+    dataset: Dataset
+        the training dataset
+    loss_fn: Any
+        the loss function
+    model_type: str
+        the type of the model, including DNN, CNN, LSTM
+    optimizer: Any
+        the optimizer
+    batch_size: int, default 1024
+        the number of the batch size
+    verbose: int, default 0
+    """
+    if model_type in ["CNN", "LSTM"]:
+        dataset[:][0] = dataset[:][0][:, None, :]
+
+    size = len(dataset)
+    running_loss = 0.0
+    network.train()
+
+    # build dataloader
+    train_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+    )
+
+    # training
+    for batch, (X, y) in enumerate(train_loader):
+        optimizer.zero_grad()
+        pred = network(X)
+        loss = loss_fn(pred, y)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+        if batch % 2000 == 1999:
+            if verbose > 0:
+                print(
+                    (
+                        f"loss: {(running_loss / 2000):.6f} "
+                        + f"[{(batch+1) * len(X)}/{size}]"
+                    )
+                )
+            running_loss = 0.0
+
+    train_pred = network(dataset[:][0])
+    train_loss = loss_fn(train_pred, dataset[:][1]).item()
+    mse = metrics.mean_squared_error(
+        dataset[:][1].numpy().flatten(),
+        train_pred.detach().numpy().flatten(),
+    )
+    mae = metrics.mean_absolute_error(
+        dataset[:][1].numpy().flatten(),
+        train_pred.detach().numpy().flatten(),
+    )
+    r2 = metrics.r2_score(
+        dataset[:][1].numpy().flatten(),
+        train_pred.detach().numpy().flatten(),
+    )
+    print(f"{'Train':<10}{train_loss:<10}{mse:<15}{mae:<10}{r2:<10}")
