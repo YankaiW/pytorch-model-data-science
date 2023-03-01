@@ -151,6 +151,47 @@ class DNNNetRegressor(nn.Module):
         return self.linear_relu_stack(x)
 
 
+# CNN newwork for regression
+class CNNNetRegressor(nn.Module):
+    """The class to define a 1-layer CNN Pytorch regression model"""
+
+    def __init__(
+        self,
+        input_size: int,
+        out: int = 16,
+        kernel_size: int = 3,
+        max_pool: int = 2,
+        l1: int = 32,
+    ) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        input_size: int
+            the number of features for one sample
+        out: int, default 16
+            the number of output channel for the CNN layer
+        kernel_size: int, default 3
+            the number of kernel size for the CNN layer
+        max_pool: int, default 2
+            the number of kernel size for the maxpool layer
+        l1: int, default 32
+            the number of output samples for the first linear layer
+        """
+        super(CNNNetRegressor, self).__init__()
+        self.cnn_relu_stack = nn.Sequential(
+            nn.Conv1d(1, out, kernel_size),
+            nn.MaxPool1d(max_pool),
+            nn.Flatten(),
+            nn.Linear(out * ((input_size - kernel_size + 1) // max_pool), l1),
+            nn.ReLU(),
+            nn.Linear(l1, 1),
+        )
+
+    def forward(self, x):
+        return self.cnn_relu_stack(x)
+
+
 # linear network for classification
 class DNNNetClassifier(nn.Module):
     """The class to define a 3-layer linear Pytorch classification model"""
