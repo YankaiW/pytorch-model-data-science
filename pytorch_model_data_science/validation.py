@@ -12,7 +12,6 @@ def test_classifier_accuracy(
     network: torch.nn.Module,
     dataset: Dataset,
     loss_fn: Any,
-    model_type: str = "DNN",
 ) -> Tuple[float, float, float, float]:
     """Tests trained model
 
@@ -24,8 +23,6 @@ def test_classifier_accuracy(
         the dataset for testing
     loss_fn:
         loss function
-    model_type: str, default DNN
-        the name of the model
 
     Returns
     -------
@@ -38,13 +35,9 @@ def test_classifier_accuracy(
     float
         f1 score
     """
-    # transform data
-    test_data = dataset[:][0]
-    if model_type in ["CNN", "LSTM"]:
-        test_data = test_data[:, None, :]
     network.eval()
     with torch.no_grad():
-        pred = network(test_data)
+        pred = network(dataset[:][0])
         loss = loss_fn(pred, dataset[:][1]).item()
     # metrics
     precision = metrics.precision_score(
@@ -66,7 +59,6 @@ def test_regressor_accuracy(
     network: torch.nn.Module,
     dataset: Dataset,
     loss_fn: Any,
-    model_type: str = "DNN",
 ) -> Tuple[float, float, float, float]:
     """Tests trained model
 
@@ -78,8 +70,6 @@ def test_regressor_accuracy(
         the dataset for testing
     loss_fn:
         loss function
-    model_type: str, default DNN
-        the name of the model
 
     Returns
     -------
@@ -92,14 +82,9 @@ def test_regressor_accuracy(
     float
         f1 score
     """
-    # transform data
-    test_data = dataset[:][0]
-    if model_type in ["CNN", "LSTM"]:
-        test_data = test_data[:, None, :]
-
     network.eval()
     with torch.no_grad():
-        pred = network(test_data)
+        pred = network(dataset[:][0])
         loss = loss_fn(pred, dataset[:][1]).item()
     # metrics
     mae = metrics.mean_absolute_error(

@@ -13,7 +13,6 @@ def train_classifier(
     network: torch.nn.Module,
     dataset: Dataset,
     loss_fn: Any,
-    model_type: str,
     optimizer: Any,
     class_weight: bool = False,
     batch_size: int = 1024,
@@ -29,8 +28,6 @@ def train_classifier(
         the training dataset
     loss_fn: Any
         the loss function
-    model_type: str
-        the type of the model, including DNN, CNN, LSTM
     optimizer: Any
         the optimizer
     class_weight: bool, default False
@@ -39,9 +36,6 @@ def train_classifier(
         the number of the batch size
     verbose: int, default 0
     """
-    if model_type in ["CNN", "LSTM"]:
-        dataset[:][0] = dataset[:][0][:, None, :]
-
     size = len(dataset)
     running_loss = 0.0
     network.train()
@@ -109,7 +103,6 @@ def train_regressor(
     network: torch.nn.Module,
     dataset: Dataset,
     loss_fn: Any,
-    model_type: str,
     optimizer: Any,
     batch_size: int = 1024,
     verbose: int = 0,
@@ -124,17 +117,12 @@ def train_regressor(
         the training dataset
     loss_fn: Any
         the loss function
-    model_type: str
-        the type of the model, including DNN, CNN, LSTM
     optimizer: Any
         the optimizer
     batch_size: int, default 1024
         the number of the batch size
     verbose: int, default 0
     """
-    if model_type in ["CNN", "LSTM"]:
-        dataset[:][0] = dataset[:][0][:, None, :]
-
     size = len(dataset)
     running_loss = 0.0
     network.train()
