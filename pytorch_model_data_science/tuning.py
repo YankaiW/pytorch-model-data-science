@@ -57,8 +57,12 @@ def tune_classifier(
     # build model
     if net_structure == "DNN":
         network = model.DNNNetClassifier(
-            input_size=ray.get(train_ray)[0][0].shape[0],
+            input_size=ray.get(train_ray)[0][0].shape[-1],
             **config["model_params"],
+        )
+    elif net_structure == "CNN":
+        network = model.CNNNetClassifier(
+            input_size=ray.get(train_ray)[0][0].shape[-1], **config["model_params"]
         )
     else:
         raise NameError("Wrong network name selected: " + net_structure)
