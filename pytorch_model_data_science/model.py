@@ -117,6 +117,7 @@ class DNNNetRegressor(nn.Module):
     def __init__(
         self,
         input_size: int,
+        output_size: int,
         l1: int = 512,
         l2: int = 128,
         l3: int = 64,
@@ -127,6 +128,8 @@ class DNNNetRegressor(nn.Module):
         ----------
         input_size: int
             the input size which is the second dim from each batch
+        output_size: int
+            the final output dimension
         l1: int, default 512
             the number of output samples from the first layer
         l2: int, default 128
@@ -143,10 +146,10 @@ class DNNNetRegressor(nn.Module):
             nn.ReLU(),
             nn.Linear(l2, l3),
             nn.ReLU(),
-            nn.Linear(l3, 1),
+            nn.Linear(l3, output_size),
         )
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         x = self.flatten(x)
         return self.linear_relu_stack(x)
 
@@ -158,6 +161,7 @@ class CNNNetRegressor(nn.Module):
     def __init__(
         self,
         input_size: int,
+        output_size: int,
         out: int = 16,
         kernel_size: int = 3,
         max_pool: int = 2,
@@ -169,6 +173,8 @@ class CNNNetRegressor(nn.Module):
         ----------
         input_size: int
             the number of features for one sample
+        output_size: int
+            the final output dimension
         out: int, default 16
             the number of output channel for the CNN layer
         kernel_size: int, default 3
@@ -185,10 +191,10 @@ class CNNNetRegressor(nn.Module):
             nn.Flatten(),
             nn.Linear(out * ((input_size - kernel_size + 1) // max_pool), l1),
             nn.ReLU(),
-            nn.Linear(l1, 1),
+            nn.Linear(l1, output_size),
         )
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         return self.cnn_relu_stack(x)
 
 
@@ -199,6 +205,7 @@ class DNNNetClassifier(nn.Module):
     def __init__(
         self,
         input_size: int,
+        output_size: int = 1,
         l1: int = 512,
         l2: int = 128,
         l3: int = 64,
@@ -209,6 +216,9 @@ class DNNNetClassifier(nn.Module):
         ----------
         input_size: int
             the input size which is the second dim from each batch
+        output_size: int, default 1
+            the dimension of the output, the default 1 means univariate
+            prediction
         l1: int, default 512
             the number of output samples from the first layer
         l2: int, default 128
@@ -225,11 +235,12 @@ class DNNNetClassifier(nn.Module):
             nn.ReLU(),
             nn.Linear(l2, l3),
             nn.ReLU(),
-            nn.Linear(l3, 1),
-            nn.Sigmoid(),
+            nn.Linear(l3, output_size),
         )
+        if output_size == 1:
+            self.linear_relu_stack.add_module("sigmoid", nn.Sigmoid())
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         x = self.flatten(x)
         return self.linear_relu_stack(x)
 
@@ -241,6 +252,7 @@ class CNNNetClassifier(nn.Module):
     def __init__(
         self,
         input_size: int,
+        output_size: int = 1,
         out: int = 16,
         kernel_size: int = 3,
         max_pool: int = 2,
@@ -252,6 +264,9 @@ class CNNNetClassifier(nn.Module):
         ----------
         input_size: int
             the number of features for one sample
+        output_size: int, default 1
+            the dimension of the output, the default 1 means univariate
+            prediction
         out: int, default 16
             the number of output channel for the CNN layer
         kernel_size: int, default 3
@@ -268,9 +283,10 @@ class CNNNetClassifier(nn.Module):
             nn.Flatten(),
             nn.Linear(out * ((input_size - kernel_size + 1) // max_pool), l1),
             nn.ReLU(),
-            nn.Linear(l1, 1),
-            nn.Sigmoid(),
+            nn.Linear(l1, output_size),
         )
+        if output_size == 1:
+            self.cnn_relu_stack.add_module("sigmoid", nn.Sigmoid())
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         return self.cnn_relu_stack(x)
