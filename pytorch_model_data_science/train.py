@@ -14,10 +14,12 @@ def train_classifier(
     dataset: Dataset,
     loss_fn: Any,
     optimizer: Any,
+    multiclass: bool = False,
     val_dataset: Optional[Dataset] = None,
     class_weight: bool = False,
     batch_size: int = 1024,
     epochs: int = 100,
+    num_workers: int = 0,
     verbose: int = 0,
     visual_batch: int = 2000,
 ) -> None:
@@ -41,6 +43,9 @@ def train_classifier(
         the number of the batch size
     epochs: int, default 100
         the number of training epochs
+    num_workers: int, default 0
+        the number of workers for data processing, default 0 means that the
+        data loading is synchronous and done in the main process
     verbose: int, default 0
         0 means no logs, 1 means epoch logs, 2 means batch logs
     visual_batch: int, default 2000
@@ -68,11 +73,19 @@ def train_classifier(
         sampler=train_sampler,
         batch_size=batch_size,
         shuffle=(train_sampler == None),
+        num_workers=num_workers,
     )
     size = len(train_loader)
     # if there is not validation data, use training data instead
     if not val_dataset:
         val_dataset = dataset
+    if multiclass:
+        val_real = torch.argmax(val_dataset[:][1], dim=1)
+        val_real = val_real.numpy()
+    else:
+        val_real = val_dataset[:][1].numpy().flatten()
+    # define method for F1 score
+    average = "weighted" if multiclass else "binary"
 
     # training
     for epoch in range(epochs):
@@ -96,19 +109,29 @@ def train_classifier(
                     )
                 running_loss = 0.0
 
-        val_pred = network(val_dataset[:][0])
-        val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
+        with torch.no_grad():
+            val_pred = network(val_dataset[:][0])
+            val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
+        # transform for univariate or multi-class prediction
+        if multiclass:
+            val_pred = torch.argmax(val_pred, dim=1)
+            val_pred = val_pred.numpy()
+        else:
+            val_pred = val_pred.detach().numpy().flatten() > 0.5
         precision = metrics.precision_score(
-            val_dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
+            val_real,
+            val_pred,
+            average=average,
         )
         recall = metrics.recall_score(
-            val_dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
+            val_real,
+            val_pred,
+            average=average,
         )
         f1 = metrics.f1_score(
-            val_dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
+            val_real,
+            val_pred,
+            average=average,
         )
         if verbose > 0:
             print(
@@ -126,6 +149,7 @@ def train_regressor(
     val_dataset: Optional[Dataset] = None,
     batch_size: int = 1024,
     epochs: int = 100,
+    num_workers: int = 0,
     verbose: int = 0,
     visual_batch: int = 2000,
 ) -> None:
@@ -147,6 +171,9 @@ def train_regressor(
         the number of the batch size
     epochs: int, default 100
         the number of training epochs
+    num_workers: int, default 0
+        the number of workers for data processing, default 0 means that the
+        data loading is synchronous and done in the main process
     verbose: int, default 0
         0 means no logs, 1 means epoch logs, 2 means batch logs
     visual_batch: int, default 2000
@@ -159,6 +186,7 @@ def train_regressor(
         dataset,
         batch_size=batch_size,
         shuffle=True,
+        num_workers=num_workers,
     )
     size = len(train_loader)
     # if there is not validation data, use training data instead
@@ -187,8 +215,9 @@ def train_regressor(
                     )
                 running_loss = 0.0
 
-        val_pred = network(val_dataset[:][0])
-        val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
+        with torch.no_grad():
+            val_pred = network(val_dataset[:][0])
+            val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
         mse = metrics.mean_squared_error(
             val_dataset[:][1].numpy().flatten(),
             val_pred.detach().numpy().flatten(),
