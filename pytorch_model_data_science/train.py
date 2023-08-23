@@ -9,6 +9,54 @@ from sklearn import metrics
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 
+class EarlyStopper:
+    """The class used for early stopping during training when the loss doesn't
+    decrease validly after some patience steps
+    """
+
+    def __init__(self, patience: int = 1, min_delta: float = 0) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        patience: int, default 1
+            the number of steps after which the training stops if the loss
+            doesn't decrease
+        min_delta: float, default 0
+            the minimal delta, if the current loss is more than the sum of the
+            delta and the minimal loss, the counter will be added 1 as one
+            non-decreasing iteration
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_loss = np.inf
+
+    def __call__(self, loss: float) -> bool:
+        """Checks whether the non-valid non-decreasing loss is accumulated up to
+        the limit patience
+
+        Parameters
+        ----------
+        loss: float
+            the current loss
+
+        Returns
+        -------
+        bool
+            the indicator if to stop the training
+        """
+        if loss < self.min_loss:
+            # once there is a new minimal loss
+            self.min_loss = loss
+            self.counter = 0
+        elif loss > (self.min_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+
 def train_classifier(
     network: torch.nn.Module,
     dataset: Dataset,
@@ -20,6 +68,7 @@ def train_classifier(
     batch_size: int = 1024,
     epochs: int = 100,
     num_workers: int = 0,
+    early_stopping: Optional[EarlyStopper] = None,
     verbose: int = 0,
     visual_batch: int = 2000,
 ) -> None:
@@ -46,6 +95,8 @@ def train_classifier(
     num_workers: int, default 0
         the number of workers for data processing, default 0 means that the
         data loading is synchronous and done in the main process
+    early_stopping: EarlyStopper, default None
+        the instance to perform early stopping
     verbose: int, default 0
         0 means no logs, 1 means epoch logs, 2 means batch logs
     visual_batch: int, default 2000
@@ -139,6 +190,9 @@ def train_classifier(
                 + f"precision:{round(precision, 5):<8}"
                 + f"recall:{round(recall, 5):<8}F1:{round(f1, 5):<8}"
             )
+        if early_stopping and early_stopping(loss=val_loss):
+            print("Stop since early stopping!")
+            break
 
 
 def train_regressor(
@@ -150,6 +204,7 @@ def train_regressor(
     batch_size: int = 1024,
     epochs: int = 100,
     num_workers: int = 0,
+    early_stopping: Optional[EarlyStopper] = None,
     verbose: int = 0,
     visual_batch: int = 2000,
 ) -> None:
@@ -174,6 +229,8 @@ def train_regressor(
     num_workers: int, default 0
         the number of workers for data processing, default 0 means that the
         data loading is synchronous and done in the main process
+    early_stopping: EarlyStopper, default None
+        the instance to perform early stopping
     verbose: int, default 0
         0 means no logs, 1 means epoch logs, 2 means batch logs
     visual_batch: int, default 2000
@@ -236,3 +293,6 @@ def train_regressor(
                 + f"MSE:{round(mse, 5):<8}MAE:{round(mae, 5):<8}"
                 + f"R2:{round(r2, 5):<8}"
             )
+        if early_stopping and early_stopping(loss=val_loss):
+            print("Stop since early stopping!")
+            break
