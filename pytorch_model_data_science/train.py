@@ -1,7 +1,7 @@
 """The module is used for training a PyTorch model
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -14,9 +14,12 @@ def train_classifier(
     dataset: Dataset,
     loss_fn: Any,
     optimizer: Any,
+    val_dataset: Optional[Dataset] = None,
     class_weight: bool = False,
     batch_size: int = 1024,
+    epochs: int = 100,
     verbose: int = 0,
+    visual_batch: int = 2000,
 ) -> None:
     """Trains a clssification PyTorch model
 
@@ -30,14 +33,19 @@ def train_classifier(
         the loss function
     optimizer: Any
         the optimizer
+    val_dataset: Dataset, default = None
+        the validation dataset
     class_weight: bool, default False
         the indicator if to consider the class weight
     batch_size: int, default 1024
         the number of the batch size
+    epochs: int, default 100
+        the number of training epochs
     verbose: int, default 0
+        0 means no logs, 1 means epoch logs, 2 means batch logs
+    visual_batch: int, default 2000
+        the number of batches when to show the on-going loss
     """
-    size = len(dataset)
-    running_loss = 0.0
     network.train()
 
     # class weights
@@ -61,42 +69,53 @@ def train_classifier(
         batch_size=batch_size,
         shuffle=(train_sampler == None),
     )
+    size = len(train_loader)
+    # if there is not validation data, use training data instead
+    if not val_dataset:
+        val_dataset = dataset
 
     # training
-    for batch, (X, y) in enumerate(train_loader):
-        optimizer.zero_grad()
-        pred = network(X)
-        loss = loss_fn(pred, y)
-        loss.backward()
-        optimizer.step()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for batch, (X, y) in enumerate(train_loader):
+            optimizer.zero_grad()
+            pred = network(X)
+            loss = loss_fn(pred, y)
+            loss.backward()
+            optimizer.step()
 
-        running_loss += loss.item()
+            running_loss += loss.item()
 
-        if batch % 2000 == 1999:
-            if verbose > 0:
-                print(
-                    (
-                        f"loss: {(running_loss / 2000):.6f} "
-                        + f"[{(batch+1) * len(X)}/{size}]"
+            if batch % visual_batch == (visual_batch - 1):
+                if verbose > 1:
+                    print(
+                        (
+                            f"epoch {epoch + 1}  batch [{batch+1:<4}/{size}]"
+                            + f"  loss: {(running_loss / visual_batch):.6f}"
+                        )
                     )
-                )
-            running_loss = 0.0
+                running_loss = 0.0
 
-    train_pred = network(dataset[:][0])
-    train_loss = loss_fn(train_pred, dataset[:][1]).item()
-    precision = metrics.precision_score(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten() > 0.5,
-    )
-    recall = metrics.recall_score(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten() > 0.5,
-    )
-    f1 = metrics.f1_score(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten() > 0.5,
-    )
-    print(f"{'Train':<10}{train_loss:<10}{precision:<15}{recall:<10}{f1:<10}")
+        val_pred = network(val_dataset[:][0])
+        val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
+        precision = metrics.precision_score(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten() > 0.5,
+        )
+        recall = metrics.recall_score(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten() > 0.5,
+        )
+        f1 = metrics.f1_score(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten() > 0.5,
+        )
+        if verbose > 0:
+            print(
+                f"Epoch [{epoch+1:<3}/{epochs}] loss:{round(val_loss, 5):<8}"
+                + f"precision:{round(precision, 5):<8}"
+                + f"recall:{round(recall, 5):<8}F1:{round(f1, 5):<8}"
+            )
 
 
 def train_regressor(
@@ -104,8 +123,11 @@ def train_regressor(
     dataset: Dataset,
     loss_fn: Any,
     optimizer: Any,
+    val_dataset: Optional[Dataset] = None,
     batch_size: int = 1024,
+    epochs: int = 100,
     verbose: int = 0,
+    visual_batch: int = 2000,
 ) -> None:
     """Trains a regression PyTorch model
 
@@ -119,12 +141,17 @@ def train_regressor(
         the loss function
     optimizer: Any
         the optimizer
+    val_dataset: Dataset, default = None
+        the validation dataset
     batch_size: int, default 1024
         the number of the batch size
+    epochs: int, default 100
+        the number of training epochs
     verbose: int, default 0
+        0 means no logs, 1 means epoch logs, 2 means batch logs
+    visual_batch: int, default 2000
+        the number of batches when to show the on-going loss
     """
-    size = len(dataset)
-    running_loss = 0.0
     network.train()
 
     # build dataloader
@@ -133,39 +160,50 @@ def train_regressor(
         batch_size=batch_size,
         shuffle=True,
     )
+    size = len(train_loader)
+    # if there is not validation data, use training data instead
+    if not val_dataset:
+        val_dataset = dataset
 
     # training
-    for batch, (X, y) in enumerate(train_loader):
-        optimizer.zero_grad()
-        pred = network(X)
-        loss = loss_fn(pred, y)
-        loss.backward()
-        optimizer.step()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for batch, (X, y) in enumerate(train_loader):
+            optimizer.zero_grad()
+            pred = network(X)
+            loss = loss_fn(pred, y)
+            loss.backward()
+            optimizer.step()
 
-        running_loss += loss.item()
+            running_loss += loss.item()
 
-        if batch % 2000 == 1999:
-            if verbose > 0:
-                print(
-                    (
-                        f"loss: {(running_loss / 2000):.6f} "
-                        + f"[{(batch+1) * len(X)}/{size}]"
+            if batch % visual_batch == (visual_batch - 1):
+                if verbose > 1:
+                    print(
+                        (
+                            f"epoch {epoch + 1}  batch [{batch+1:<4}/{size}]"
+                            + f"  loss: {(running_loss / visual_batch):.6f}"
+                        )
                     )
-                )
-            running_loss = 0.0
+                running_loss = 0.0
 
-    train_pred = network(dataset[:][0])
-    train_loss = loss_fn(train_pred, dataset[:][1]).item()
-    mse = metrics.mean_squared_error(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten(),
-    )
-    mae = metrics.mean_absolute_error(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten(),
-    )
-    r2 = metrics.r2_score(
-        dataset[:][1].numpy().flatten(),
-        train_pred.detach().numpy().flatten(),
-    )
-    print(f"{'Train':<10}{train_loss:<10}{mse:<15}{mae:<10}{r2:<10}")
+        val_pred = network(val_dataset[:][0])
+        val_loss = loss_fn(val_pred, val_dataset[:][1]).item()
+        mse = metrics.mean_squared_error(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten(),
+        )
+        mae = metrics.mean_absolute_error(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten(),
+        )
+        r2 = metrics.r2_score(
+            val_dataset[:][1].numpy().flatten(),
+            val_pred.detach().numpy().flatten(),
+        )
+        if verbose > 0:
+            print(
+                f"Epoch [{epoch + 1:<3}/{epochs}] loss:{round(val_loss, 5):<8}"
+                + f"MSE:{round(mse, 5):<8}MAE:{round(mae, 5):<8}"
+                + f"R2:{round(r2, 5):<8}"
+            )
