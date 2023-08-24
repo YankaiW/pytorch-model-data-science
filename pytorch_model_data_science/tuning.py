@@ -2,7 +2,7 @@
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 import ray
@@ -11,20 +11,25 @@ from ray import tune
 from sklearn import metrics
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 
-from pytorch_model_data_science import model
+from pytorch_model_data_science.model import *  # noqa: F403
 
 
+# hyperparameter tuning for classificaiton
 def tune_classifier(
     config: Dict[str, Any],
-    net_structure: str,
+    network_name: str,
     train_ray: ray.ObjectRef,
-    loss_fn: Any,
+    loss_fn: Callable,
     val_ray: Optional[ray.ObjectRef] = None,
     val_size: Optional[float] = None,
     last_checkpoint: Optional[str] = None,
     class_weight: bool = False,
+    num_workers: int = 0,
+    multiclass: bool = False,
     epochs: int = 10,
+    early_stopping: Optional[EarlyStopper] = None,
     verbose: int = 0,
+    visual_batch: int = 2000,
     random_state: int = 0,
 ) -> None:
     """Hyperparameter tuning for a classification PyTorch model
@@ -33,11 +38,11 @@ def tune_classifier(
     ----------
     config: dict
         the dictionary containing the hyperparameter grid
-    net_structure: str
-        the name of the model
+    network_name: str
+        the name of the model, DNN or CNN
     train_ray: ray.ObjectRef
         the train data id represented by ray.ObjectRef
-    loss_fn: Any
+    loss_fn: Callable
         the PyTorch loss function
     val_ray: ray.ObjectRef
         the validation data id represented by ray.ObjectRef
@@ -47,28 +52,44 @@ def tune_classifier(
         the local checkpoint dir if want to continue from the last time
     class_weight: bool, default False
         the indicator if to use class weight when training
+    num_workers: int, default 0
+        the number of cpus when loading data
+    multiclass: bool, default False
+        the indicator if this is a multi-label classification problem
     epochs: int, default 10
         the number of epochs
+    early_stopping: EarlyStopper, default None
+        the instance to perform early stopping
     verbose: int, default 0
-        the number of verbose indicator
+        0 means no logs, 1 means epoch logs, 2 means batch logs
+    visual_batch: int, default 2000
+        the number of batches when to show the on-going loss
     random_state: int, default 0
         the random state
     """
     # build model
-    if net_structure == "DNN":
-        network = model.DNNNetClassifier(
+    if network_name == "DNN":
+        network = DNNNetClassifier(
             input_size=ray.get(train_ray)[0][0].shape[-1],
+            output_size=ray.get(train_ray)[0][1].shape[-1],
             **config["model_params"],
         )
-    elif net_structure == "CNN":
-        network = model.CNNNetClassifier(
-            input_size=ray.get(train_ray)[0][0].shape[-1], **config["model_params"]
+    elif network_name == "CNN":
+        network = CNNNetClassifier(
+            input_size=ray.get(train_ray)[0][0].shape[-1],
+            output_size=ray.get(train_ray)[0][1].shape[-1],
+            **config["model_params"],
         )
     else:
-        raise NameError("Wrong network name selected: " + net_structure)
+        raise NameError(f"Wrong network name selected: {network_name}")
 
     # define optimizer
-    optimizer = torch.optim.Adam(network.parameters(), lr=config["lr"])
+    if config["optimizer"] == "Adam":
+        optimizer = torch.optim.Adam(network.parameters(), lr=config["lr"])
+    elif config["optimizer"] == "SGD":
+        optimizer = torch.optim.SGD(network.parameters(), lr=config["lr"])
+    else:
+        raise NameError(f"Wrong optimizer name selected: {config['optimizer']}")
 
     # load the model and optimizer from the last time
     if last_checkpoint:
@@ -90,6 +111,13 @@ def tune_classifier(
             [len(ray.get(train_ray)) - val_ratio, val_ratio],
             generator=torch.Generator().manual_seed(random_state),
         )
+    # real validation indices labels
+    if multiclass:
+        val_real = torch.argmax(val_subset[:][1], dim=1).numpy()
+    else:
+        val_real = val_subset[:][1].numpy().flatten()
+    # define method for metrics
+    average = "weighted" if multiclass else "binary"
 
     # class weights
     train_sampler = None
@@ -111,16 +139,12 @@ def tune_classifier(
         sampler=train_sampler,
         batch_size=int(config["batch_size"]),
         shuffle=(train_sampler == None),
-    )
-    val_loader = DataLoader(
-        val_subset,
-        batch_size=int(config["batch_size"]),
-        shuffle=True,
+        num_workers=num_workers,
     )
 
     # training
+    size = len(train_loader)
     for epoch in range(epochs):
-        size = len(train_subset)
         running_loss = 0.0
         network.train()
         for batch, (X, y) in enumerate(train_loader):
@@ -133,52 +157,56 @@ def tune_classifier(
             running_loss += loss.item()
 
             # running loss visualization
-            if batch % 2000 == 1999:
-                if verbose > 0:
+            if batch % visual_batch == (visual_batch - 1):
+                if verbose > 1:
                     print(
                         (
-                            f"loss: {(running_loss / 2000):.6f} "
-                            + f"[{(batch+1)*len(X)}/{size}]"
+                            f"epoch {epoch + 1}  batch [{batch+1:<4}/{size}]"
+                            + f"  loss: {(running_loss / visual_batch):.6f}"
                         )
                     )
                 running_loss = 0.0
 
         # validation
         with torch.no_grad():
-            val_pred = network(val_loader.dataset[:][0])
-            val_loss = loss_fn(val_pred, val_loader.dataset[:][1]).item()
+            val_pred = network(val_subset[:][0])
+            val_loss = loss_fn(val_pred, val_subset[:][1]).item()
+        # transform for univariate or multi-class prediction
+        if multiclass:
+            val_pred = torch.argmax(val_pred, dim=1).numpy()
+        else:
+            val_pred = val_pred.detach().numpy().flatten() > 0.5
         # metrics
-        precision = metrics.precision_score(
-            val_loader.dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
-        )
-        recall = metrics.recall_score(
-            val_loader.dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
-        )
+        accuracy = metrics.accuracy_score(val_real, val_pred)
         f1 = metrics.f1_score(
-            val_loader.dataset[:][1].numpy().flatten(),
-            val_pred.detach().numpy().flatten() > 0.5,
+            val_real,
+            val_pred,
+            average=average,
         )
 
         with tune.checkpoint_dir(epoch) as checkpoint_dir:
             path = os.path.join(checkpoint_dir, "checkpoint")
             torch.save((network.state_dict(), optimizer.state_dict()), path)
 
-        tune.report(loss=val_loss, precision=precision, recall=recall, f1=f1)
+        tune.report(loss=val_loss, accuracy=accuracy, f1=f1)
+        if early_stopping and early_stopping(loss=val_loss):
+            break
     print("Finished Training")
 
 
 def training_regressor(
     config: Dict[str, Any],
-    net_structure: str,
+    network_name: str,
     train_ray: ray.ObjectRef,
-    loss_fn: Any,
+    loss_fn: Callable,
     val_ray: Optional[ray.ObjectRef] = None,
     val_size: Optional[float] = None,
+    num_workers: int = 0,
     last_checkpoint: Optional[str] = None,
     epochs: int = 10,
+    early_stopping: Optional[EarlyStopper] = None,
     verbose: int = 0,
+    visual_batch: int = 2000,
     random_state: int = 0,
 ) -> None:
     """Hyperparameter tuning for a regression PyTorch model
@@ -187,36 +215,46 @@ def training_regressor(
     ----------
     config: dict
         the dictionary containing the hyperparameter grid
-    net_structure: str
-        the name of the model
+    network_name: str
+        the name of the model, DNN or CNN
     train_ray: ray.ObjectRef
         the train data id represented by ray.ObjectRef
-    loss_fn:
+    loss_fn: Callable
         the pytorch loss function
     val_ray: ray.ObjectRef
         the validation data id represented by ray.ObjectRef
     val_size: float, default None
         the partition ratio of validation set
+    num_workers: int, default 0
+        the number of cpus when loading data
     last_checkpoint: str, default None
         the local checkpoint dir if want to continue from the last time
     epochs: int, default 10
         the number of epochs
+    early_stopping: EarlyStopper, default None
+        the instance to perform early stopping
     verbose: int, default 0
         the number of verbose indictor
+    visual_batch: int, default 2000
+        the number of batches when to show the on-going loss
     random_state: int, default 0
         the random state
     """
     # build model
-    if net_structure == "DNN":
-        network = model.DNNNetRegressor(
-            input_size=ray.get(train_ray)[0][0].shape[-1], **config["model_params"]
+    if network_name == "DNN":
+        network = DNNNetRegressor(
+            input_size=ray.get(train_ray)[0][0].shape[-1],
+            output_size=ray.get(train_ray)[0][1].shape[-1],
+            **config["model_params"],
         )
-    elif net_structure == "CNN":
-        network = model.CNNNetRegressor(
-            input_size=ray.get(train_ray)[0][0].shape[-1], **config["model_params"]
+    elif network_name == "CNN":
+        network = CNNNetRegressor(
+            input_size=ray.get(train_ray)[0][0].shape[-1],
+            output_size=ray.get(train_ray)[0][1].shape[-1],
+            **config["model_params"],
         )
     else:
-        raise NameError("Wrong model name selected: " + net_structure)
+        raise NameError(f"Wrong model name selected: {network_name}")
 
     # define optimizer
     optimizer = torch.optim.Adam(network.parameters(), lr=config["lr"])
@@ -247,16 +285,12 @@ def training_regressor(
         train_subset,
         batch_size=int(config["batch_size"]),
         shuffle=True,
-    )
-    val_loader = DataLoader(
-        val_subset,
-        batch_size=int(config["batch_size"]),
-        shuffle=True,
+        num_workers=num_workers,
     )
 
     # training
+    size = len(train_loader)
     for epoch in range(epochs):
-        size = len(train_subset)
         running_loss = 0.0
         network.train()
         for batch, (X, y) in enumerate(train_loader):
@@ -269,31 +303,31 @@ def training_regressor(
             running_loss += loss.item()
 
             # running loss visualization
-            if batch % 2000 == 1999:
-                if verbose > 0:
+            if batch % visual_batch == (visual_batch - 1):
+                if verbose > 1:
                     print(
                         (
-                            f"loss: {(running_loss / 2000):.6f} "
-                            + f"[{(batch+1) * len(X)}/{size}]"
+                            f"epoch {epoch + 1}  batch [{batch+1:<4}/{size}]"
+                            + f"  loss: {(running_loss / visual_batch):.6f}"
                         )
                     )
                 running_loss = 0.0
 
         # validation
         with torch.no_grad():
-            val_pred = network(val_loader.dataset[:][0])
-            val_loss = loss_fn(val_pred, val_loader.dataset[:][1]).item()
+            val_pred = network(val_subset[:][0])
+            val_loss = loss_fn(val_pred, val_subset[:][1]).item()
         # metrics
         mae = metrics.mean_absolute_error(
-            val_loader.dataset[:][1].numpy().flatten(),
+            val_subset[:][1].numpy().flatten(),
             val_pred.detach().numpy().flatten(),
         )
         mse = metrics.mean_squared_error(
-            val_loader.dataset[:][1].numpy().flatten(),
+            val_subset[:][1].numpy().flatten(),
             val_pred.detach().numpy().flatten(),
         )
         r2 = metrics.r2_score(
-            val_loader.dataset[:][1].numpy().flatten(),
+            val_subset[:][1].numpy().flatten(),
             val_pred.detach().numpy().flatten(),
         )
 
@@ -302,4 +336,6 @@ def training_regressor(
             torch.save((network.state_dict(), optimizer.state_dict()), path)
 
         tune.report(loss=val_loss, mae=mae, mse=mse, r2=r2)
+        if early_stopping and early_stopping(loss=val_loss):
+            break
     print("Finished Training")
