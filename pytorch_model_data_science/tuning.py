@@ -1,6 +1,7 @@
 """The module used for hyperparameter tuning for PyTorch models
 """
 
+import logging
 import os
 from typing import Any, Callable, Dict, Optional
 
@@ -12,6 +13,10 @@ from sklearn import metrics
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 
 from pytorch_model_data_science.model import *  # noqa: F403
+
+# define logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 # hyperparameter tuning for classificaiton
@@ -190,6 +195,7 @@ def tune_classifier(
 
         tune.report(loss=val_loss, accuracy=accuracy, f1=f1)
         if early_stopping and early_stopping(loss=val_loss):
+            logger.info(f"Early stopping at epoch {epoch + 1}")
             break
     print("Finished Training")
 
@@ -337,5 +343,6 @@ def training_regressor(
 
         tune.report(loss=val_loss, mae=mae, mse=mse, r2=r2)
         if early_stopping and early_stopping(loss=val_loss):
+            logger.info(f"Early stopping at epoch {epoch + 1}")
             break
     print("Finished Training")
