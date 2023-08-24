@@ -1,6 +1,7 @@
 """The module is used for training a PyTorch model
 """
 
+import logging
 from typing import Any, Optional
 
 import numpy as np
@@ -9,6 +10,10 @@ from sklearn import metrics
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 from pytorch_model_data_science.model import *  # noqa: F403
+
+# define logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def train_classifier(
@@ -147,7 +152,7 @@ def train_classifier(
                 + f"recall:{round(recall, 5):<8}F1:{round(f1, 5):<8}"
             )
         if early_stopping and early_stopping(loss=val_loss):
-            print("Stop since early stopping!")
+            logger.info(f"Early stopping at epoch {epoch + 1}")
             break
 
 
@@ -250,5 +255,5 @@ def train_regressor(
                 + f"R2:{round(r2, 5):<8}"
             )
         if early_stopping and early_stopping(loss=val_loss):
-            print("Stop since early stopping!")
+            logger.info(f"Early stopping at epoch {epoch + 1}")
             break
