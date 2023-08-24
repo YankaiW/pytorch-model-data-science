@@ -10,6 +10,54 @@ from sklearn import base, metrics
 from torch import nn
 
 
+class EarlyStopper:
+    """The class used for early stopping during training when the loss doesn't
+    decrease validly after some patience steps
+    """
+
+    def __init__(self, patience: int = 1, min_delta: float = 0) -> None:
+        """Constructor
+
+        Parameters
+        ----------
+        patience: int, default 1
+            the number of steps after which the training stops if the loss
+            doesn't decrease
+        min_delta: float, default 0
+            the minimal delta, if the current loss is more than the sum of the
+            delta and the minimal loss, the counter will be added 1 as one
+            non-decreasing iteration
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_loss = np.inf
+
+    def __call__(self, loss: float) -> bool:
+        """Checks whether the non-valid non-decreasing loss is accumulated up to
+        the limit patience
+
+        Parameters
+        ----------
+        loss: float
+            the current loss
+
+        Returns
+        -------
+        bool
+            the indicator if to stop the training
+        """
+        if loss < self.min_loss:
+            # once there is a new minimal loss
+            self.min_loss = loss
+            self.counter = 0
+        elif loss > (self.min_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+
 class PyTorchEstimator(base.BaseEstimator, base.RegressorMixin):
     """The class to define a sklearn estimator from PyTorch model"""
 
