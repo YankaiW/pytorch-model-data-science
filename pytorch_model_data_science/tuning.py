@@ -32,7 +32,7 @@ def tune_classifier(
     num_workers: int = 0,
     multiclass: bool = False,
     epochs: int = 10,
-    early_stopping: Optional[EarlyStopper] = None,
+    early_stopping: int = 0,
     verbose: int = 0,
     visual_batch: int = 2000,
     random_state: int = 0,
@@ -63,8 +63,9 @@ def tune_classifier(
         the indicator if this is a multi-label classification problem
     epochs: int, default 10
         the number of epochs
-    early_stopping: EarlyStopper, default None
-        the instance to perform early stopping
+    early_stopping: int, default 0
+        the number of patience for early stopping, the default 0 means no early
+        stopper applied
     verbose: int, default 0
         0 means no logs, 1 means epoch logs, 2 means batch logs
     visual_batch: int, default 2000
@@ -146,6 +147,9 @@ def tune_classifier(
         shuffle=(train_sampler == None),
         num_workers=num_workers,
     )
+    # check early stopping
+    if early_stopping > 0:
+        early_stopper = EarlyStopper(patience=early_stopping)
 
     # training
     size = len(train_loader)
@@ -194,10 +198,10 @@ def tune_classifier(
             torch.save((network.state_dict(), optimizer.state_dict()), path)
 
         tune.report(loss=val_loss, accuracy=accuracy, f1=f1)
-        if early_stopping and early_stopping(loss=val_loss):
+        if early_stopping > 0 and early_stopper(loss=val_loss):
             logger.info(f"Early stopping at epoch {epoch + 1}")
             break
-    print("Finished Training")
+    logger.info("Finished Training")
 
 
 def training_regressor(
@@ -210,7 +214,7 @@ def training_regressor(
     num_workers: int = 0,
     last_checkpoint: Optional[str] = None,
     epochs: int = 10,
-    early_stopping: Optional[EarlyStopper] = None,
+    early_stopping: int = 0,
     verbose: int = 0,
     visual_batch: int = 2000,
     random_state: int = 0,
@@ -237,8 +241,9 @@ def training_regressor(
         the local checkpoint dir if want to continue from the last time
     epochs: int, default 10
         the number of epochs
-    early_stopping: EarlyStopper, default None
-        the instance to perform early stopping
+    early_stopping: int, default 0
+        the number of patience for early stopping, the default 0 means no early
+        stopper applied
     verbose: int, default 0
         the number of verbose indictor
     visual_batch: int, default 2000
@@ -293,6 +298,9 @@ def training_regressor(
         shuffle=True,
         num_workers=num_workers,
     )
+    # check early stopping
+    if early_stopping > 0:
+        early_stopper = EarlyStopper(patience=early_stopping)
 
     # training
     size = len(train_loader)
@@ -342,7 +350,7 @@ def training_regressor(
             torch.save((network.state_dict(), optimizer.state_dict()), path)
 
         tune.report(loss=val_loss, mae=mae, mse=mse, r2=r2)
-        if early_stopping and early_stopping(loss=val_loss):
+        if early_stopping > 0 and early_stopper(loss=val_loss):
             logger.info(f"Early stopping at epoch {epoch + 1}")
             break
-    print("Finished Training")
+    logger.info("Finished Training")
