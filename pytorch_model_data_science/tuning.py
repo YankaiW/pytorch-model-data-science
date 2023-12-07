@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-# hyperparameter tuning for classificaiton
-def tune_classifier(
+# train classificaiton model
+def train_classifier(
     config: Dict[str, Any],
     network_name: str,
     train_ray: ray.ObjectRef,
@@ -204,7 +204,8 @@ def tune_classifier(
     logger.info("Finished Training")
 
 
-def training_regressor(
+# train regression model
+def train_regressor(
     config: Dict[str, Any],
     network_name: str,
     train_ray: ray.ObjectRef,
