@@ -2,13 +2,15 @@
 
 ## Contents
 
-- [Introduction](#introduction)
-- [Usage](#usage)
-  - [PyTroch Model Construction](#pytroch-model-construction)
-  - [PyTorch Model Training and Validation](#pytorch-model-training-and-validation)
-  - [PyTorch Model Hyperparameter Tuning](#pytorch-model-hyperparameter-tuning)
-  - [Usage Example in Notebook](#usage-example-in-notebook)
-- [Development](#development)
+- [Data Science with PyTorch](#data-science-with-pytorch)
+  - [Contents](#contents)
+  - [Introduction](#introduction)
+  - [Usage](#usage)
+    - [PyTroch Model Construction](#pytroch-model-construction)
+    - [PyTorch Model Training and Validation](#pytorch-model-training-and-validation)
+    - [PyTorch Model Hyperparameter Tuning](#pytorch-model-hyperparameter-tuning)
+    - [Usage Example in Notebook](#usage-example-in-notebook)
+  - [Development](#development)
 
 ## Introduction
 
@@ -82,6 +84,12 @@ Here is a general example about how to use this repo in a realistic data science
    ```
 
 ## Development
+
+* Check and reformat coding format
+
+    ```
+    make coding_standards
+    ```
 
 * Install requirements
 
