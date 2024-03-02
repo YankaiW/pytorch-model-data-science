@@ -9,7 +9,6 @@
     - [PyTroch Model Construction](#pytroch-model-construction)
     - [PyTorch Model Training and Validation](#pytorch-model-training-and-validation)
     - [PyTorch Model Hyperparameter Tuning](#pytorch-model-hyperparameter-tuning)
-    - [Usage Example in Notebook](#usage-example-in-notebook)
   - [Development](#development)
 
 ## Introduction
@@ -32,10 +31,12 @@ In the module `pytorch_model_data_science.model`, there are several pre-defined 
 
 * Regressor
   * DNNNetRegressor
+  * CNNNetRegressor
 * Classifier
-  * DNNNetClassifier
+  * DNN1DClassifier
+  * CNN1DClassifier
 
-which can be invoked from there directly when necessary.
+which can be invoked from there directly when needed.
 
 ### PyTorch Model Training and Validation
 
@@ -43,45 +44,12 @@ In the modules `pytorch_model_data_science.train` and `pytorch_model_data_scienc
 
 ### PyTorch Model Hyperparameter Tuning
 
-In the modules `pytorch_model_data_science.tune`, there are trainable functions `tune_classifier` and `tune_regressor`, which can be used in hyperparameter tuning for classification or regression models.
+When implementing hyperparameter tuning, one can refer to the examples that give
+us the detailed steps of tuning for classification and regression problems, 
 
-### Usage Example in Notebook
-
-Here is a general example about how to use this repo in a realistic data science project.
-
-1. Collect and clean the raw data.
-2. Transform categorical features.
-3. Normalize features.
-4. Convert data to PyTorch Dataset.
-5. Run the prepared notebook by the commandline in the notebook, 
-   ```
-   %run PATH_TO/pytorch_model_data_science/pytorch_model_data_science/tuning.ipynb
-   ```
-   where there are pre-defined models and trainable functions for hyperparameter tuning. 
-6. Tune hyperparameters by using the class `ray.tune.Tuner`, 
-   ```python
-   # define tuner
-   tuner = tune.Tuner(
-       trainable=functools.partial(
-           trainable_functions,
-           ..., # its other arguments except the grid configuration
-       ),
-       param_space=..., # parameter grid for seaching
-       tune_config=tune.tune_config.TuneConfig(
-           ..., # tuning configuration
-       ),
-       run_config=ray.air.config.RunConfig(
-           ..., # experiment configuration
-       ),
-   )
-
-   # tune hyperparameters
-   results = tuner.fit()
-
-   # best hyperparameters
-   best_result = results.get_best_result()
-   best_config = best_result.metrics["config"]
-   ```
+* `notebook/classifier_fashionmnist_1D.ipynb`: The example to implement 
+  hyperparameter tuning for 1D classification problem based on FashionMNIST 
+  dataset.
 
 ## Development
 
@@ -106,7 +74,7 @@ Here is a general example about how to use this repo in a realistic data science
 * Update dependencies
 
     ```
-    poetry update (PACKAGE)
+    poetry update PACKAGE
     ```
 
 * Remove dependencies
