@@ -2,7 +2,7 @@
 estimator
 """
 
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -246,95 +246,155 @@ class CNNNetRegressor(nn.Module):
         return self.cnn_relu_stack(x)
 
 
-# linear network for classification
-class DNNNetClassifier(nn.Module):
-    """The class to define a 3-layer linear Pytorch classification model"""
+# 1D DNN network for classification
+class DNN1DClassifier(nn.Module):
+    """The class to define a 3-layer linear Pytorch classification model
+
+    Note that the input data for this model can be arbitrary dimensions, but the
+    input size is better to be set up clearly before.
+    """
 
     def __init__(
         self,
         input_size: int,
-        output_size: int = 1,
-        l1: int = 512,
-        l2: int = 128,
-        l3: int = 64,
+        output_size: int,
+        hidden_layers: List[int],
     ) -> None:
         """Constructor
 
         Parameters
         ----------
         input_size: int
-            the input size which is the second dim from each batch
-        output_size: int, default 1
-            the dimension of the output, the default 1 means univariate
-            prediction
-        l1: int, default 512
-            the number of output samples from the first layer
-        l2: int, default 128
-            the number of output samples from the second layer
-        l3: int, default 64
-            the number of output samples from the third layer
+            the number of dimensions of input data
+        output_size: int
+            the number of dimensions of output data
+        hidden_layers: list
+            the list containing the in/out data size in the hidden layers
         """
-        super(DNNNetClassifier, self).__init__()
-        self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_size, l1),
-            nn.ReLU(),
-            nn.Linear(l1, l2),
-            nn.ReLU(),
-            nn.Linear(l2, l3),
-            nn.ReLU(),
-            nn.Linear(l3, output_size),
-        )
-        if output_size == 1:
-            self.linear_relu_stack.add_module("sigmoid", nn.Sigmoid())
+        super(DNN1DClassifier, self).__init__()
 
-    def forward(self, x) -> torch.Tensor:
-        x = self.flatten(x)
-        return self.linear_relu_stack(x)
+        self.net = nn.Sequential()
+
+        # transform into 1D
+        self.net.add_module("flatten", nn.Flatten())
+        hidden_layers = [input_size] + hidden_layers + [output_size]
+
+        for idx in range(len(hidden_layers) - 1):
+            self.net.add_module(
+                f"linear_{idx}", nn.Linear(hidden_layers[idx], hidden_layers[idx + 1])
+            )
+            if idx < (len(hidden_layers) - 2):
+                self.net.add_module(
+                    f"norm_{idx}", nn.BatchNorm1d(hidden_layers[idx + 1])
+                )
+                self.net.add_module(f"relu_{idx}", nn.ReLU())
+        # when output size is 1, transform output to be probability
+        if hidden_layers[-1] == 1:
+            self.net.add_module("sigmoid", nn.Sigmoid())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward function
+
+        Parameters
+        ----------
+        x: torch.Tensor
+            the input tensor with the shape (N_samples, n0, n1, ...), which can
+            be the arbitrary dimensions
+
+        Returns
+        -------
+        torch.Tensor
+            the output data after model processing
+        """
+        return self.net(x)
 
 
-# CNN network for classification
-class CNNNetClassifier(nn.Module):
-    """The class to define a 1-layer CNN Pytorch classification model"""
+# 1D CNN network for classification
+class CNN1DClassifier(nn.Module):
+    """The class to define a 1-layer CNN Pytorch classification model
+
+    Note that this model is strict with the input shape.
+    """
 
     def __init__(
         self,
-        input_size: int,
-        output_size: int = 1,
-        out: int = 16,
-        kernel_size: int = 3,
-        max_pool: int = 2,
-        l1: int = 32,
+        input_shape: Tuple[int],
+        output_size: int,
+        cnn_outputs: List[int],
+        kernel_sizes: int,
+        max_pools: int,
+        linear_layers: List[int],
     ) -> None:
         """Constructor
 
         Parameters
         ----------
-        input_size: int
-            the number of features for one sample
-        output_size: int, default 1
-            the dimension of the output, the default 1 means univariate
-            prediction
-        out: int, default 16
-            the number of output channel for the CNN layer
-        kernel_size: int, default 3
-            the number of kernel size for the CNN layer
-        max_pool: int, default 2
-            the number of kernel size for the maxpool layer
-        l1: int, default 32
-            the number of output samples for the first linear layer
+        input_shape: tuple
+            the input shape in 2D
+        output_size: int
+            the number of dimensions of output data
+        cnn_outputs: list
+            the list of CNN layers output channel numbers
+        kernel_sizes: int
+            the  kernel size in each CNN layer
+        max_pools: int
+            the pool number in the pool layers after each CNN layer
+        linear_layers: list
+            the list containing the in/out data size in the hidden layers,
+            except the first input data size
         """
-        super(CNNNetClassifier, self).__init__()
-        self.cnn_relu_stack = nn.Sequential(
-            nn.Conv1d(1, out, kernel_size),
-            nn.MaxPool1d(max_pool),
-            nn.Flatten(),
-            nn.Linear(out * ((input_size - kernel_size + 1) // max_pool), l1),
-            nn.ReLU(),
-            nn.Linear(l1, output_size),
-        )
-        if output_size == 1:
-            self.cnn_relu_stack.add_module("sigmoid", nn.Sigmoid())
+        super(CNN1DClassifier, self).__init__()
 
-    def forward(self, x) -> torch.Tensor:
-        return self.cnn_relu_stack(x)
+        self.net = nn.Sequential()
+        self.input_shape = input_shape
+        for idx in range(len(cnn_outputs)):
+            if idx == 0:
+                self.net.add_module(
+                    f"cnn_{idx}", nn.Conv1d(1, cnn_outputs[idx], kernel_sizes)
+                )
+            else:
+                self.net.add_module(
+                    f"cnn_{idx}",
+                    nn.Conv1d(cnn_outputs[idx - 1], cnn_outputs[idx], kernel_sizes),
+                )
+            self.net.add_module(f"norm_{idx}", nn.BatchNorm1d(cnn_outputs[idx]))
+            self.net.add_module(f"relu_{idx}", nn.ReLU())
+            self.net.add_module(f"maxpool_{idx}", nn.MaxPool1d(max_pools))
+            self.input_shape = (
+                cnn_outputs[idx],
+                (self.input_shape[-1] - kernel_sizes + 1) // max_pools,
+            )
+
+        # fully connection layer
+        self.net.add_module("fully_connection", nn.Flatten())
+        linear_layers = (
+            [self.input_shape[0] * self.input_shape[1]] + linear_layers + [output_size]
+        )
+        for idx in range(len(linear_layers) - 1):
+            self.net.add_module(
+                f"linear_{idx}", nn.Linear(linear_layers[idx], linear_layers[idx + 1])
+            )
+            if idx < (len(linear_layers) - 2):
+                self.net.add_module(
+                    f"linear_norm_{idx}", nn.BatchNorm1d(linear_layers[idx + 1])
+                )
+                self.net.add_module(f"linear_relu_{idx}", nn.ReLU())
+
+        # when output size is 1, transform output to be probability
+        if linear_layers[-1] == 1:
+            self.net.add_module("sigmoid", nn.Sigmoid())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward function
+
+        Parameters
+        ----------
+        x: torch.Tensor
+            the input feature data, with the shape (N_samples, channels, dimension)
+
+        Returns
+        -------
+        torch.Tensor
+            the output data after model processing
+        """
+        return self.net(x)

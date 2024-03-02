@@ -7,8 +7,12 @@ authors = ["YankaiW <wyk.uestc@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 scikit-learn = "1.1.1"
-torch = "^1.13.1"
-ray = "^2.2.0"
+notebook = "^7.1.0"
+torch = "^2.2.0"
+torchvision = "^0.17.0"
+ray = {extras = ["data", "serve", "train", "tune"], version = "^2.9.2"}
+setuptools = "^69.1.0"
+ipywidgets = "^8.1.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
