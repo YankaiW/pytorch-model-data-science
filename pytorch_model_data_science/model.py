@@ -246,9 +246,9 @@ class CNNNetRegressor(nn.Module):
         return self.cnn_relu_stack(x)
 
 
-# 1D DNN network for classification
-class DNN1DClassifier(nn.Module):
-    """The class to define a 3-layer linear Pytorch classification model
+# 1D DNN network
+class DNN1DNet(nn.Module):
+    """The class to define linear Pytorch model
 
     Note that the input data for this model can be arbitrary dimensions, but the
     input size is better to be set up clearly before.
@@ -259,6 +259,7 @@ class DNN1DClassifier(nn.Module):
         input_size: int,
         output_size: int,
         hidden_layers: List[int],
+        usage: str = "regression",
     ) -> None:
         """Constructor
 
@@ -270,10 +271,13 @@ class DNN1DClassifier(nn.Module):
             the number of dimensions of output data
         hidden_layers: list
             the list containing the in/out data size in the hidden layers
+        usage: str, default "regression"
+            the goal of the model, regression or classification
         """
-        super(DNN1DClassifier, self).__init__()
+        super(DNN1DNet, self).__init__()
 
         self.net = nn.Sequential()
+        self.usage = usage
 
         # transform into 1D
         self.net.add_module("flatten", nn.Flatten())
@@ -289,7 +293,7 @@ class DNN1DClassifier(nn.Module):
                 )
                 self.net.add_module(f"relu_{idx}", nn.ReLU())
         # when output size is 1, transform output to be probability
-        if hidden_layers[-1] == 1:
+        if hidden_layers[-1] == 1 and self.usage == "classification":
             self.net.add_module("sigmoid", nn.Sigmoid())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -309,9 +313,9 @@ class DNN1DClassifier(nn.Module):
         return self.net(x)
 
 
-# 1D CNN network for classification
-class CNN1DClassifier(nn.Module):
-    """The class to define a 1-layer CNN Pytorch classification model
+# 1D CNN network
+class CNN1DNet(nn.Module):
+    """The class to define a CNN Pytorch model
 
     Note that this model is strict with the input shape.
     """
@@ -324,6 +328,7 @@ class CNN1DClassifier(nn.Module):
         kernel_sizes: int,
         max_pools: int,
         linear_layers: List[int],
+        usage: str = "regression",
     ) -> None:
         """Constructor
 
@@ -342,10 +347,13 @@ class CNN1DClassifier(nn.Module):
         linear_layers: list
             the list containing the in/out data size in the hidden layers,
             except the first input data size
+        usage: str, default "regression"
+            the goal of the model, regression or classification
         """
-        super(CNN1DClassifier, self).__init__()
+        super(CNN1DNet, self).__init__()
 
         self.net = nn.Sequential()
+        self.usage = usage
         self.input_shape = input_shape
         for idx in range(len(cnn_outputs)):
             if idx == 0:
@@ -381,7 +389,7 @@ class CNN1DClassifier(nn.Module):
                 self.net.add_module(f"linear_relu_{idx}", nn.ReLU())
 
         # when output size is 1, transform output to be probability
-        if linear_layers[-1] == 1:
+        if linear_layers[-1] == 1 and self.usage == "classification":
             self.net.add_module("sigmoid", nn.Sigmoid())
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

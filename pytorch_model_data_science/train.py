@@ -2,10 +2,14 @@
 """
 
 import logging
-from typing import Any, Optional
+import os
+import tempfile
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
+import ray
 import torch
+from ray import train
 from sklearn import metrics
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
@@ -71,14 +75,16 @@ def train_classifier(
         the random state
     """
     # build model
-    if network_name == "DNN1DClassifier":
-        network = DNN1DClassifier(
+    if network_name == "DNN1DNet":
+        network = DNN1DNet(
+            usage="classification",
             input_size=ray.get(train_ray)[0][0].shape[-1],
             output_size=(torch.max(ray.get(train_ray)[:][1]).item() + 1),
             **config["model_parameters"],
         )
-    elif network_name == "CNN1DClassifier":
-        network = CNN1DClassifier(
+    elif network_name == "CNN1DNet":
+        network = CNN1DNet(
+            usage="classification",
             input_shape=(
                 ray.get(train_ray)[0][0].shape[-2],
                 ray.get(train_ray)[0][0].shape[-1],
